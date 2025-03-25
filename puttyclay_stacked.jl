@@ -80,18 +80,45 @@ function state(y, m, x, v, params::NamedTuple)
 end
 
 
-state(v0[50,1], v0[50,2],v0[50,3], v0[50,4], params)
+# state(v0[50,1], v0[50,2],v0[50,3], v0[50,4], params)
+
 
 
 # Control Transition
 function control(t::Int, x::Vector, v::Vector, c::Vector, y::Vector, params::NamedTuple)
     α, β, δ, ϵ, σ, g_A, g_Ae, g, R₀ = params.α, params.β, params.δ, params.ϵ, params.σ, params.g_A, params.g_Ae, params.g, params.R₀
-   
-    SU_t1 = sum((1/(1-β*(1-δ)))* c[i]^(-σ) for i in t+1:length(c), init = 0.0)
-    SU_t = sum((1/(1-β*(1-δ))) * c[i]^(-σ) for i in t:length(c), init = 0.0)
+    
+    #define obsolescence threshold values
+    v̄ = zeros(eltype(v), T)
+    for i in 1:T
+        try
+            v̄[i] = ((λ_ss/c[i]^-(params.σ))^((params.ϵ - 1)/params.ϵ) - 1)^(params.ϵ/(params.ϵ-1))
+        catch e
+            if isa(e, DomainError)
+                v̄[i] = 0
+            else
+                rethrow(e)
+            end
+        end
+    end
 
-    SC_t1 = sum(1/(1- (β*(1-δ)*g)))
-    SC_t = sum(1/(1-(β*(1-δ)*g)))
+    #define length of use of vintage t
+    i = 0
+    while i < T && v[t] > v̄[min(t+i, T)]
+        i += 1
+    end
+
+    #define length of use of vintage t+1
+    k = 0
+    while k < T && v[t+1] > v̄[min(t+1+k, T)]
+        k += 1
+    end
+
+    SU_t1 = sum((β*(1-δ))^s * c[min(t+1+s, T)]^(-σ) for s in 1:k, init = 0.0)
+    SU_t = sum((β*(1-δ))^s * c[min(t+s, T)]^(-σ) for s in 1:i, init = 0.0)
+
+    SC_t1 = sum((β*(1-δ)*g)^s for s in 1:k, init = 0.0)
+    SC_t = sum((β*(1-δ)*g)^s for s in 1:i, init = 0.0)
 
     res1 = x[t+1] - (f(v[t+1], ϵ) - f_prime(v[t+1], ϵ) * v[t+1])/(f(v[t], ϵ) - f_prime(v[t], ϵ) * v[t]) * (SU_t1)/(SU_t)*(SC_t/SC_t1)* (β/g) * x[t] 
     res2 = c[t+1]^(-σ) + λ*(g/β)^(t+1) * SC_t1 - (SU_t1/SU_t)*(c[t]^(-σ) + λ*(g/β)^t * SC_t)
@@ -100,14 +127,14 @@ function control(t::Int, x::Vector, v::Vector, c::Vector, y::Vector, params::Nam
     return res1, res2, res3
 end
 
-control(2,v0[:,3], v0[:,4], v0[:,5], v0[:,1],params)
+# control(2, v0[:,3], v0[:,4], v0[:,5], v0[:,1], params)
 
-for t in 1:T-1
-    SU_t1 = sum((1/(1-β*(1-δ)))* v0[i, 1]^(-σ) for i in t+1:T, init = 0.0)
-    SU_t = sum((1/(1-β*(1-δ))) * v0[i, 1]^(-σ) for i in t:T, init = 0.0)
-    ratio = SU_t1 / SU_t
-    println("At t = $t: SU_t1 = $SU_t1, SU_t = $SU_t, Ratio (SU_t1 / SU_t) = $ratio")
-end
+# for t in 1:T-1
+#     SU_t1 = sum((1/(1-β*(1-δ)))* v0[i, 1]^(-σ) for i in t+1:T, init = 0.0)
+#     SU_t = sum((1/(1-β*(1-δ))) * v0[i, 1]^(-σ) for i in t:T, init = 0.0)
+#     ratio = SU_t1 / SU_t
+#     println("At t = $t: SU_t1 = $SU_t1, SU_t = $SU_t, Ratio (SU_t1 / SU_t) = $ratio")
+# end
 
 #loop to compute control values for a range of t
 # for k in 1:T-1
@@ -117,18 +144,18 @@ end
 
 
 # Define the matrix of residuals
- function F(v::Matrix)
+function F(v::Matrix) 
     R = zeros(eltype(v), T, 5)
-    R[1, 1] = v[1, 1] - y_0  # Fix the first value of residuals as a difference to k_0
-    R[1, 2] = v[1, 2] - m_0  # Fix the first value of residuals as a difference to e_0    
-    R[T, 3] = v_ss - v[T, 4] # Fix the last value of residuals as a difference to x_ss
-    R[T, 4] = x_ss - v[T, 3] # Fix the last value of residuals as a difference to v_ss
-    R[T, 5] = c_ss - v[T, 5] # Fix the last value of residuals as a difference to c_ss
+    R[1, 1] = v[1, 1] - 14.0 
+    R[1, 2] = v[1, 2] - 14.0  
+    R[T, 3] = v_ss - v[T, 4] 
+    R[T, 4] = x_ss - v[T, 3] 
+    R[T, 5] = c_ss - v[T, 5] 
 
     for t in 1:T-1
         R[t+1, 1] = v[t+1,1] - state(v[t, 1], v[t, 2], v[t, 3], v[t, 4], params)[1]
         R[t+1, 2] = v[t+1,2] - state(v[t, 1], v[t, 2], v[t, 3], v[t, 4], params)[2]
-        R[t, 3], R[t, 4], R[t, 5] = control(t, Vector{Number}(v[:, 3]), Vector{Number}(v[:, 4]), Vector{Number}(v[:, 5]), Vector{Number}(v0[:, 1]), params)
+        R[t, 3], R[t, 4], R[t, 5] = control(t, Vector{Number}(v[:, 3]), Vector{Number}(v[:, 4]), Vector{Number}(v[:, 5]), Vector{Number}(v[:, 1]), params)
     end
 
     return R
@@ -137,65 +164,74 @@ end
 
 #Initial guess 
 T = 100
-v_0 = zeros(T, 5)
-y_0, m_0 = y_ss, m_ss
+h = 1e-6
+y_0, m_0, x_0, v_0, c_0 = y_ss + h, m_ss + h, x_ss + h, v_ss + h, c_ss + h
+
+v_0 = [y_0, m_0, x_0, v_0, c_0]
+
 v_T = [y_ss, m_ss, x_ss, v_ss, c_ss]
 
-# Create v initial guess as a 100x5 matrix
+
+#Define v as a linear increase from v_0 to v_T
+v0 = [v_0 + (v_T - v_0) * t / T for t in 0:T-1]
+# Convert v to a matrix
+v0 = hcat(v0...)'
+v0 = Matrix(v0)
+
+
+# Create steady_state initial guess as a 100x5 matrix
 v0 = vcat(fill(v_T', T)...) # Initial guess for v (100x5 matrix)
 #convert v_0 to a Matrix{Number}
-v0 = Matrix{Float64}(v0)
+v0 = Matrix(v0)
+
 λ = λ_ss       # Initial guess for λ (scalar)
 
-#define v̄ a vector full of 0, length T
-# v̄ = zeros(T)
-# v0 = ones(T,5) 
 
-#Test the F function
+# Test the F function
 F(v0)
 
 # Solve using nlsolve
-res = nlsolve(x -> F(x), v0)
+res = nlsolve(x -> F(x), v0,autodiff=:forward, show_trace = true,  iterations=100)
 v_sol = res.zero
 
 #manual newton solver for F(x) = 0, initial guess v0
-function newton_solver(F, v0; tol = 1e-6, max_iter = 1000)
-    v = v0
-    norm_res = norm(vec(F(v)))  # Flatten residuals into a vector
-    iter = 0
-    h = 1e-8  # Small perturbation for finite differences
+# function newton_solver(F, v0; tol = 1e-6, max_iter = 1000, damping_factor = 0.5)
+#     v = v0
+#     norm_res = norm(vec(F(v)))  # Flatten residuals into a vector
+#     iter = 0
+#     h = 1e-8  # Small perturbation for finite differences
 
-    while norm_res > tol && iter < max_iter
-        println("Iteration $iter: Residual norm = $norm_res")  # Print iteration info
+#     while norm_res > tol && iter < max_iter
+#         println("Iteration $iter: Residual norm = $norm_res")  # Print iteration info
 
-        # Compute the Jacobian manually
-        F_v = vec(F(v))  # Flatten residuals into a vector
-        J = zeros(eltype(v), length(F_v), length(vec(v)))  # Jacobian for flattened residuals
+#         # Compute the Jacobian manually
+#         F_v = vec(F(v))  # Flatten residuals into a vector
+#         J = zeros(eltype(v), length(F_v), length(vec(v)))  # Jacobian for flattened residuals
 
-        for i in 1:size(v, 1)
-            for j in 1:size(v, 2)
-                v_perturbed = copy(v)
-                v_perturbed[i, j] += h
-                F_perturbed = vec(F(v_perturbed))  # Flatten perturbed residuals
-                J[:, (i - 1) * size(v, 2) + j] = (F_perturbed - F_v) / h
-            end
-        end
+#         for i in 1:size(v, 1)
+#             for j in 1:size(v, 2)
+#                 v_perturbed = copy(v)
+#                 v_perturbed[i, j] += h
+#                 F_perturbed = vec(F(v_perturbed))  # Flatten perturbed residuals
+#                 J[:, (i - 1) * size(v, 2) + j] = (F_perturbed - F_v) / h
+#             end
+#         end
 
-        Δv = reshape(-J \ F_v, size(v))  # Solve for Δv and reshape to match v
-        v += Δv
-        norm_res = norm(vec(F(v)))  # Update residual norm
-        iter += 1
-    end
+#         Δv = reshape(-J \ F_v, size(v))  # Solve for Δv and reshape to match v
+#         v += damping_factor * Δv  # Apply damping factor to the update
+#         norm_res = norm(vec(F(v)))  # Update residual norm
+#         iter += 1
+#     end
 
-    if norm_res <= tol
-        println("Converged in $iter iterations with residual norm = $norm_res")
-    else
-        println("Failed to converge in $max_iter iterations. Final residual norm = $norm_res")
-    end
+#     if norm_res <= tol
+#         println("Converged in $iter iterations with residual norm = $norm_res")
+#     else
+#         println("Failed to converge in $max_iter iterations. Final residual norm = $norm_res")
+#     end
 
-    return v
-end
-newton_solver(x -> F(x), v0)
+#     return v
+# end
+# newton_solver(x -> F(x), v0)
 
 # Plot the results
 function plot_results(v::Matrix)
