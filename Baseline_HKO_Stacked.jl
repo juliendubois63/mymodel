@@ -5,20 +5,19 @@ using SparseArrays
 using LinearAlgebra
 
 # Define parameters
-α = 0.33
 σ = 1.0
 ϵ = 0.02
 β = 0.985
 δ = 0.05
-R₀ = 100
+R₀ = 1000
 g_A = 1.01
 
 # Adjust β and compute g_Ae
-β *= g_A^((1-σ)/(1-α))
-g_Ae = g_A^(σ/(1-α)) / β
-g = g_Ae / g_A^(1/(1-α))
+β *= g_A^((1-σ)/2)
+g_Ae = g_A^2/ β
+g = g_Ae / g_A^2
 
-params = (; α, β, δ, ϵ, σ, g_A, g_Ae, g, R₀)
+params = (; β, δ, ϵ, σ, g_A, g_Ae, g, R₀)
 
 # Utility function
 function u(c::Number, σ::Number)
@@ -32,45 +31,47 @@ function u_prime(c::Number, σ::Number)
 end
 
 # Production function and derivatives
-function f(k::Number, e::Number, α::Number, ϵ::Number)
-    return ((k^α)^((ϵ-1)/ϵ) + e^((ϵ-1)/ϵ))^(ϵ/(ϵ-1))
+function f(k::Number, e::Number,  ϵ::Number)
+    return ((k)^((ϵ-1)/ϵ) + e^((ϵ-1)/ϵ))^(ϵ/(ϵ-1))
 end
 
-function f_prime_k(k::Number, e::Number, α::Number, ϵ::Number)
-    return ForwardDiff.derivative(x -> f(x, e, α, ϵ), k)
+function f_prime_k(k::Number, e::Number, ϵ::Number)
+    return ForwardDiff.derivative(x -> f(x, e, ϵ), k)
 end
 
-function f_prime_e(k::Number, e::Number, α::Number, ϵ::Number)
-    return ForwardDiff.derivative(x -> f(k, x, α, ϵ), e)
+function f_prime_e(k::Number, e::Number, ϵ::Number)
+    return ForwardDiff.derivative(x -> f(k, x, ϵ), e)
 end
 
 # Compute steady-state values
 e_ss = ((g - 1) / g) * R₀
 
-function solve_steady_state(e_ss, g_A, β, α, δ, ϵ, σ)
+function solve_steady_state(e_ss, g_A, β, δ, ϵ, σ)
     function equations(vars)
         k, c = vars
-        eq1 = c^σ - (β / g_A^(1 / (1 - α))) * (α * k^(α - 1) * (1 + (e_ss / k^α)^((ϵ - 1) / ϵ))^(1 / (ϵ - 1)) + 1 - δ) * c^σ
-        eq2 = k - ((k^α)^((ϵ-1)/ϵ) + e_ss^((ϵ-1)/ϵ))^(ϵ/(ϵ-1)) - (1 - δ) * k + c
+        eq1 = c^σ - (β / g_A^2) * (f_prime_k(k, e_ss, ϵ) + 1 - δ) * c^σ #euler equation at c_t+1 = c_t
+        eq2 = k - f(k, e_ss, ϵ) - (1 - δ) * k + c #resource constraint at k_t+1 = k_t
         return [eq1, eq2]
     end
-    solution = nlsolve(equations, [1.0, 1.0])
+    solution = nlsolve(equations, [10.0, 10.0], show_trace = true)
     return solution.zero
 end
 
-k_ss, c_ss = solve_steady_state(e_ss, g_A, β, α, δ, ϵ, σ)
+k_ss, c_ss = solve_steady_state(e_ss, g_A, β, δ, ϵ, σ)
+
+f(k_ss,e_ss,α,ϵ)
 
 # Transition functions
 function state(k::Number, e::Number, c::Number, params)
-    return f(k, e, params.α, params.ϵ) + (1 - params.δ) * k - c
+    return f(k, e, params.ϵ) + (1 - params.δ) * k - c
 end
 
 # Define the control function that computes both residuals at the same time
 function control(k::Number, k_next::Number, e::Number, e_next::Number, c::Number, c_next::Number, params)
-    res1 = u_prime(c, params.σ) * params.g_A^(1 / (1 - params.α)) - params.β * u_prime(c_next, params.σ) * (f_prime_k(k_next, e_next, params.α, params.ϵ) + 1 - params.δ)
-    res2 = params.β * u_prime(c_next, params.σ) / u_prime(c, params.σ) * (f_prime_e(k_next, e_next, params.α, params.ϵ) / f_prime_e(k, e, params.α, params.ϵ)) - (1 / params.g)
+    res1 = u_prime(c, params.σ) * params.g_A^2 - params.β * u_prime(c_next, params.σ) * (f_prime_k(k_next, e_next, params.ϵ) + 1 - params.δ)
+    res2 = params.β * u_prime(c_next, params.σ) / u_prime(c, params.σ) * (f_prime_e(k_next, e_next, params.ϵ) / f_prime_e(k, e,  params.ϵ)) - (1 / params.g)
     return res1, res2
-end    
+end 
 
 # Define the function F
 function F(v::Matrix)
@@ -99,7 +100,8 @@ end
 
 # Define the vector v
 v_T = [k_ss, e_ss, c_ss]
-k_0, e_0, c_0 = 0.8, 0.8, 0.8
+h = 1e-1
+k_0, e_0, c_0 = 5.0,13.0,1.0
 v_0 = [k_0, e_0, c_0]
 T = 100  # Time horizon
 
@@ -116,7 +118,7 @@ v = hcat(v...)'
 v = Matrix(v)
 
 # Solve using NLsolve
-res = nlsolve(x -> F(x), v)
+res = nlsolve(x -> F(x), v, show_trace = true)
 v_sol = reshape(res.zero, T, 3)
 
 # Plot the results in 3 different graphs
@@ -134,13 +136,13 @@ v = F(v_sol)
 #Adjust the path by multiplying them by g_A^(t/(1-α)) to obtain non stationarized
 v_adj = copy(v_sol)
 for t in 1:T
-    v_adj[t, 1] *= g_A^(t / (1 - α))
+    v_adj[t, 1] *= g_A^(2t)
     v_adj[t, 2] /= g^(t - 1)
-    v_adj[t, 3] *= g_A^(t / (1 - α))
+    v_adj[t, 3] *= g_A^(2t)
 end
 
-#create a function to plot the two paths, stationarized and non stationarized on a 3x2 layout
-function plot_results(v::Matrix, v_adj::Matrix)
+# Create a function to plot the two paths, stationarized and non-stationarized on a 3x2 layout
+function plot_results(v::Matrix, v_adj::Matrix, y::Vector, y_adj::Vector)
     p1 = plot(v[:, 1], label = "k", title = "Capital", titlefontsize=10, linecolor=:blue)
     p2 = plot(v[:, 2], label = "e", title = "Energy", titlefontsize=10, linecolor=:green)
     p3 = plot(v[:, 3], label = "c", title = "Consumption", titlefontsize=10, linecolor=:red)
@@ -150,7 +152,29 @@ function plot_results(v::Matrix, v_adj::Matrix)
     plot(p1, p4, p2, p5, p3, p6, layout = (3, 2))
 end
 
-plot_results(v_sol, v_adj)
+# Call the function to plot the results
+plot_results(v_sol, v_adj, y, y_adj)
+
+
+
+#Compute output level, meaning f(k,e) for each t
+y = [f(v_sol[t, 1], v_sol[t, 2], ϵ) for t in 1:T]
+y_adj = [y[t]* g_A^(2t) for t in 1:T]   
+
+#Compute investment level, meaning f(k,e) - c for each t
+x = [y[t] - v_sol[t, 3] for t in 1:T]
+x_adj = [x[t] * g_A^(2t) for t in 1:T]
+
+#Plot the output 
+function plot_output(y, y_adj, x, x_adj)
+    p1 = plot(y, label = "CES", title = "Output", titlefontsize=10, linecolor=:blue)
+    p2 = plot(y_adj, label = "CES", title = "Output (non-stationarized)", titlefontsize=10, linecolor=:blue)
+    p3 = plot(x, label = "CES", title = "Investment", titlefontsize=10, linecolor=:green)
+    p4 = plot(x_adj, label = "CES", title = "Investment (non-stationarized)", titlefontsize=10, linecolor=:green)
+    plot(p1, p2, p3, p4, layout = (2, 2))
+end
+
+plot_output(y, y_adj, x, x_adj)
 
 #compute and plot growth rate of variables from v_adj
 function plot_growth(v_adj::Matrix)
