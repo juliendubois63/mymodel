@@ -238,21 +238,37 @@ v_sol = res.zero
 # end
 # v_sol = newton_solver(x -> F(x), v0)
 
+#Adjust the path by multiplying them by g_A^(t/(1-α)) to obtain non stationarized
+v_adj = copy(v_sol)
+for t in 1:T
+    v_adj[t, 1] *= g_A^(2t)
+    v_adj[t, 2] *= g^(t - 1)
+    v_adj[t, 3] *= g_A^(2t)
+    v_adj[t, 4] /= g^t
+    v_adj[t, 5] *= g_A^(2t)
+end
+
+
 # Plot the results
-function plot_results(v::Matrix)
-    p1 = plot(v[:, 1], label = "k", title = "output")
-    p2 = plot(v[:, 2], label = "e", title = "total energy")
-    p3 = plot(v[:, 3], label = "c", title = "investment")
-    p4 = plot(v[:, 4], label = "v", title = "energy intensity")
-    p5 = plot(v[:, 5], label = "c", title = "consumption")
-    plot(p1, p2, p3, p4, p5,  layout = (3, 2))
+function plot_results(v::Matrix, v_adj::Matrix)
+    # Plot stationary results
+    p1 = plot(v[:, 1], label = "y", title = "Output", titlefontsize=10, linecolor=:blue)
+    p2 = plot(v[:, 2], label = "e", title = "Total Energy", titlefontsize=10, linecolor=:green)
+    p3 = plot(v[:, 3], label = "c", title = "Investment", titlefontsize=10,  linecolor=:brown)
+    p4 = plot(v[:, 4], label = "v", title = "Energy Intensity", titlefontsize=10, linecolor=:purple)
+    p5 = plot(v[:, 5], label = "c", title = "Consumption",  titlefontsize=10, linecolor=:red)
+
+    # Plot non-stationarized results
+    p6 = plot(v_adj[:, 1], label = "y", title = "Output (Non-Stationarized)", titlefontsize=10, linecolor=:blue)
+    p7 = plot(v_adj[:, 2], label = "e", title = "Total Energy (Non-Stationarized)", titlefontsize=10, linecolor=:green)
+    p8 = plot(v_adj[:, 3], label = "c", title = "Investment (Non-Stationarized)", titlefontsize=10, linecolor=:brown)
+    p9 = plot(v_adj[:, 4], label = "v", title = "Energy Intensity (Non-Stationarized)", titlefontsize=10, linecolor=:purple)
+    p10 = plot(v_adj[:, 5], label = "c", title = "Consumption (Non-Stationarized)", titlefontsize=10, linecolor=:red)
+    plot(p1, p6, p2, p7, p3, p8, p4, p9, p5, p10, layout = (5, 2), size = (1200, 800))
 end
 
-plot_results(v_sol)
+plot_results(v_sol, v_adj)
 
-
-
-#Compute growth rates of variables of v_sol
-function growth_rates(v::Matrix)
-    
-end
+#plot only adjusted consumption alone please
+plot(v_adj[:,1], label = "y", title = "Output (Non-Stationarized)", titlefontsize=10, linecolor=:blue)
+plot(v_adj[:, 5], label = "c", title = "Consumption (Non-Stationarized)", titlefontsize=10, linecolor=:red)
