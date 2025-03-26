@@ -15,9 +15,9 @@ R₀ = 1000
 g_A = 1.01
 
 # Adjust β and compute g_Ae
-β *= g_A^((1-σ)/2)
-g_Ae = g_A^2/ β
-g = g_Ae / g_A^2
+β *= g_A^(2*(1-σ))
+g_Ae = g_A^(2) / β
+g = g_A^(2)/g_Ae
 
 params = (; β, δ, ϵ, σ, g_A, g_Ae, g, R₀)
 
@@ -43,7 +43,7 @@ function f_prime(v::Number, ϵ::Number)
     return v    
 end
 
-m_ss = ((g - 1) / g) * R₀
+m_ss = (1-g) * R₀
 
 # Define the function
 function steady_state_solver(m_ss::Number, params::NamedTuple)
@@ -80,7 +80,9 @@ function state(y, m, x, v, params::NamedTuple)
 end
 
 
-# state(v0[50,1], v0[50,2],v0[50,3], v0[50,4], params)
+y_ss - state(v0[50,1], v0[50,2],v0[50,3], v0[50,4], params)[1], m_ss - state(v0[50,1], v0[50,2],v0[50,3], v0[50,4], params)[2]
+
+
 
 # Control Transition
 function control(t::Int, x::Vector, v::Vector, c::Vector, y::Vector, params::NamedTuple)
@@ -125,7 +127,7 @@ function control(t::Int, x::Vector, v::Vector, c::Vector, y::Vector, params::Nam
     return res1, res2, res3
 end
 
-# control(2, v0[:,3], v0[:,4], v0[:,5], v0[:,1], params)
+control(2, v0[:,3], v0[:,4], v0[:,5], v0[:,1], params)
 
 #for t in 1:T-1
 #     SU_t1 = sum((1/(1-β*(1-δ)))* v0[i, 1]^(-σ) for i in t+1:T, init = 0.0)
@@ -161,9 +163,9 @@ end
 
 
 #Initial guess 
-T = 100
-h = 1e-3
-y_0, m_0, x_0, v_0, c_0 = y_ss-h, m_ss-h, x_ss-h, v_ss-h, c_ss-h
+T = 50
+h = 1e-1
+y_0, m_0, x_0, v_0, c_0 = y_ss - h, m_ss - h, x_ss - h, v_ss - h, c_ss - h
 
 v_z = [y_0, m_0, x_0, v_0, c_0]
 
@@ -179,24 +181,14 @@ v0 = Matrix(v0)
 
 F(v0)
 
-# # Create steady_state initial guess as a 100x5 matrix
-v0 = vcat(fill(v_T', T)...) # Initial guess for v (100x5 matrix)
-# #convert v_0 to a Matrix{Number}
-v0 = Matrix(v0)
+# # # Create steady_state initial guess as a 100x5 matrix
+# v0 = vcat(fill(v_T', T)...) # Initial guess for v (100x5 matrix)
+# # #convert v_0 to a Matrix{Number}
+# v0 = Matrix(v0)
 
-
-function F_transformed(z::Vector)
-    v = reshape(exp.(z), size(v0))  # Ensure positivity
-    R = F(v)  # Compute residuals
-    return vec(R)  # Flatten residuals into a vector
-end
-
-z0 = log.(vec(v0))  # Initial guess in transformed space
-res = nlsolve(z -> F_transformed(z), z0, autodiff = :forward, method = :trust_region, show_trace = true, xtol = 1e-6, ftol = 1e-3, iterations = 3000)
-v_sol = reshape(exp.(res.zero), size(v0))  # Transform solution back
 
 # Solve using nlsolve
-res = nlsolve(x -> F(x), v0, autodiff = :forward, method =:trust_region, show_trace = true, xtol = 1e-6, ftol = 1e-3,  iterations=3000)
+res = nlsolve(x -> F(x), v0, autodiff = :forward, method =:trust_region, show_trace = true, xtol = 1e-6, ftol = 1e-6,  iterations=1000)
 v_sol = res.zero
 
 #manual newton solver for F(x) = 0, initial guess v0
@@ -257,6 +249,8 @@ function plot_results(v::Matrix)
 end
 
 plot_results(v_sol)
+
+
 
 #Compute growth rates of variables of v_sol
 function growth_rates(v::Matrix)
