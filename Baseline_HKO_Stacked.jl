@@ -13,7 +13,7 @@ R₀ = 1000
 g_A = 1.01
 
 # Adjust β and compute g_Ae
-β *= g_A^((1-σ)/2)
+β *= g_A^(2*(1-σ))
 g_Ae = g_A^2/ β
 g = g_Ae / g_A^2
 
@@ -53,13 +53,13 @@ function solve_steady_state(e_ss, g_A, β, δ, ϵ, σ)
         eq2 = k - f(k, e_ss, ϵ) - (1 - δ) * k + c #resource constraint at k_t+1 = k_t
         return [eq1, eq2]
     end
-    solution = nlsolve(equations, [10.0, 10.0], show_trace = true)
+    solution = nlsolve(equations, [15.0, 15.0], show_trace = true, autodiff = :forward)
     return solution.zero
 end
 
 k_ss, c_ss = solve_steady_state(e_ss, g_A, β, δ, ϵ, σ)
 
-f(k_ss,e_ss,α,ϵ)
+f(k_ss,e_ss,ϵ)
 
 # Transition functions
 function state(k::Number, e::Number, c::Number, params)
@@ -101,9 +101,9 @@ end
 # Define the vector v
 v_T = [k_ss, e_ss, c_ss]
 h = 1e-1
-k_0, e_0, c_0 = 5.0,13.0,1.0
+k_0, e_0, c_0 = k_ss - h, e_ss - h, c_ss - h
 v_0 = [k_0, e_0, c_0]
-T = 100  # Time horizon
+T = 50  # Time horizon
 
 #Define v as a linear increase from v_0 to v_T
 v = [v_0 + (v_T - v_0) * t / T for t in 0:T-1]
@@ -136,13 +136,13 @@ v = F(v_sol)
 #Adjust the path by multiplying them by g_A^(t/(1-α)) to obtain non stationarized
 v_adj = copy(v_sol)
 for t in 1:T
-    v_adj[t, 1] *= g_A^(2t)
+    v_adj[t, 1] *= g_A^(t)
     v_adj[t, 2] /= g^(t - 1)
     v_adj[t, 3] *= g_A^(2t)
 end
 
 # Create a function to plot the two paths, stationarized and non-stationarized on a 3x2 layout
-function plot_results(v::Matrix, v_adj::Matrix, y::Vector, y_adj::Vector)
+function plot_results(v::Matrix, v_adj::Matrix)
     p1 = plot(v[:, 1], label = "k", title = "Capital", titlefontsize=10, linecolor=:blue)
     p2 = plot(v[:, 2], label = "e", title = "Energy", titlefontsize=10, linecolor=:green)
     p3 = plot(v[:, 3], label = "c", title = "Consumption", titlefontsize=10, linecolor=:red)
@@ -153,9 +153,7 @@ function plot_results(v::Matrix, v_adj::Matrix, y::Vector, y_adj::Vector)
 end
 
 # Call the function to plot the results
-plot_results(v_sol, v_adj, y, y_adj)
-
-
+plot_results(v_sol, v_adj)
 
 #Compute output level, meaning f(k,e) for each t
 y = [f(v_sol[t, 1], v_sol[t, 2], ϵ) for t in 1:T]
@@ -203,5 +201,5 @@ p2 = plot(1:T, e, label = "CES", title = "Energy", titlefontsize=10, linecolor=:
 savefig(p2, "C:/Users/juliendubois/Downloads/energy_CES.png")
 p3 = plot(1:T, c, label = "CES", title = "Consumption", titlefontsize=10, linecolor=:red)
 savefig(p3, "C:/Users/juliendubois/Downloads/consumption_CES.png")
-
-
+p4 = plot(1:T, y_adj, label = "CES", title = "Output (non-stationarized)", titlefontsize=10, linecolor=:purple)
+savefig(p4, "C:/Users/juliendubois/Downloads/output_CES.png")
