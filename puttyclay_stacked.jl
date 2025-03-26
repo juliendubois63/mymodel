@@ -80,7 +80,7 @@ function state(y, m, x, v, params::NamedTuple)
 end
 
 
-y_ss - state(v0[50,1], v0[50,2],v0[50,3], v0[50,4], params)[1], m_ss - state(v0[50,1], v0[50,2],v0[50,3], v0[50,4], params)[2]
+#y_ss - state(v0[50,1], v0[50,2],v0[50,3], v0[50,4], params)[1], m_ss - state(v0[50,1], v0[50,2],v0[50,3], v0[50,4], params)[2]
 
 
 
@@ -127,7 +127,7 @@ function control(t::Int, x::Vector, v::Vector, c::Vector, y::Vector, params::Nam
     return res1, res2, res3
 end
 
-control(2, v0[:,3], v0[:,4], v0[:,5], v0[:,1], params)
+#control(2, v0[:,3], v0[:,4], v0[:,5], v0[:,1], params)
 
 #for t in 1:T-1
 #     SU_t1 = sum((1/(1-β*(1-δ)))* v0[i, 1]^(-σ) for i in t+1:T, init = 0.0)
