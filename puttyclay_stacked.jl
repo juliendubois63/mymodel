@@ -147,7 +147,7 @@ end
 function F(v::Matrix) 
     R = zeros(eltype(v), T, 5)
     R[1, 1] = v[1, 1] - y_0 
-    R[1, 2] = v[1, 2] - m_0
+    R[1, 4] = v[1, 4] - v_0
     R[T, 3] = v_ss - v[T, 4] 
     R[T, 4] = x_ss - v[T, 3] 
     R[T, 5] = c_ss - v[T, 5] 
@@ -163,9 +163,14 @@ end
 
 
 #Initial guess 
-T = 50
+T = 25
 h = 1e-1
-y_0, m_0, x_0, v_0, c_0 = y_ss - h, m_ss - h, x_ss - h, v_ss - h, c_ss - h
+v_0 = 0.7
+k_0 = 12.0
+y_0 = k_0*(f(v_0,ϵ)/v_0)
+m_0 = k_0*1/v_0
+x_0 = x_ss
+c_0 = c_ss
 
 v_z = [y_0, m_0, x_0, v_0, c_0]
 
@@ -188,7 +193,7 @@ F(v0)
 
 
 # Solve using nlsolve
-res = nlsolve(x -> F(x), v0, autodiff = :forward, method =:trust_region, show_trace = true, xtol = 1e-6, ftol = 1e-6,  iterations=1000)
+res = nlsolve(x -> F(x), v0, iterations=1000, autodiff = :forward, method =:trust_region, show_trace = true, xtol = 1e-5, ftol = 1e-3)
 v_sol = res.zero
 
 #manual newton solver for F(x) = 0, initial guess v0
@@ -254,14 +259,14 @@ function plot_results(v::Matrix, v_adj::Matrix)
     # Plot stationary results
     p1 = plot(v[:, 1], label = "y", title = "Output", titlefontsize=10, linecolor=:blue)
     p2 = plot(v[:, 2], label = "e", title = "Total Energy", titlefontsize=10, linecolor=:green)
-    p3 = plot(v[:, 3], label = "c", title = "Investment", titlefontsize=10,  linecolor=:brown)
+    p3 = plot(v[:, 3], label = "x", title = "Investment", titlefontsize=10,  linecolor=:brown)
     p4 = plot(v[:, 4], label = "v", title = "Energy Intensity", titlefontsize=10, linecolor=:purple)
     p5 = plot(v[:, 5], label = "c", title = "Consumption",  titlefontsize=10, linecolor=:red)
 
     # Plot non-stationarized results
     p6 = plot(v_adj[:, 1], label = "y", title = "Output (Non-Stationarized)", titlefontsize=10, linecolor=:blue)
     p7 = plot(v_adj[:, 2], label = "e", title = "Total Energy (Non-Stationarized)", titlefontsize=10, linecolor=:green)
-    p8 = plot(v_adj[:, 3], label = "c", title = "Investment (Non-Stationarized)", titlefontsize=10, linecolor=:brown)
+    p8 = plot(v_adj[:, 3], label = "x", title = "Investment (Non-Stationarized)", titlefontsize=10, linecolor=:brown)
     p9 = plot(v_adj[:, 4], label = "v", title = "Energy Intensity (Non-Stationarized)", titlefontsize=10, linecolor=:purple)
     p10 = plot(v_adj[:, 5], label = "c", title = "Consumption (Non-Stationarized)", titlefontsize=10, linecolor=:red)
     plot(p1, p6, p2, p7, p3, p8, p4, p9, p5, p10, layout = (5, 2), size = (1200, 800))
