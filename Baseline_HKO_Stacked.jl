@@ -77,6 +77,7 @@ end
 function F(v::Matrix)
     R = zeros(T, 3)
     R[1, 1] = v[1, 1] - k_0  # Fix the first value of residuals as a difference to k_0
+    R[1,2] = v[1,2] - e_0 
     R[T, 2] = e_ss - v[T, 2] # Fix the last value of residuals as a difference to e_ss
     R[T, 3] = c_ss - v[T, 3] # Fix the last value of residuals as a difference to c_ss
     for t in 1:T-1
@@ -101,9 +102,9 @@ end
 # Define the vector v
 v_T = [k_ss, e_ss, c_ss]
 h = 1e-1
-k_0, e_0, c_0 = k_ss - h, e_ss - h, c_ss - h
+k_0, e_0, c_0 = 12.0, 17.1,10.0
 v_0 = [k_0, e_0, c_0]
-T = 50  # Time horizon
+T = 25  # Time horizon
 
 #Define v as a linear increase from v_0 to v_T
 v = [v_0 + (v_T - v_0) * t / T for t in 0:T-1]
